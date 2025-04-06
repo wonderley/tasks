@@ -28,24 +28,38 @@ def get_today_tasks(debug=False):
     }
     
     try:
-        # Get all tasks
-        response = requests.get(
-            "https://api.todoist.com/rest/v2/tasks",
+        # Get all tasks using Sync API
+        response = requests.post(
+            "https://api.todoist.com/sync/v9/sync",
             headers=headers,
+            json={
+                "sync_token": "*",  # Get all data
+                "resource_types": ["items", "day_orders"]  # Get tasks and their day orders
+            },
             verify=False  # Disable SSL verification
         )
         response.raise_for_status()
-        tasks = response.json()
+        data = response.json()
         
         if debug:
             print("\nDebug: Raw JSON response from Todoist:")
-            print(json.dumps(tasks, indent=2))
+            print(json.dumps(data, indent=2))
         
         # Get today's date in YYYY-MM-DD format
         today = datetime.now().strftime('%Y-%m-%d')
         
-        # Filter tasks that are due today
-        return [task for task in tasks if task.get('due') and task['due']['date'] == today]
+        # Get day orders for sorting
+        day_orders = data.get('day_orders', {})
+        
+        # Filter tasks that are due today and add their day_order
+        today_tasks = []
+        for task in data.get('items', []):
+            if task.get('due') and task['due']['date'] == today and not task.get('checked', False):
+                # Add day_order to the task object
+                task['day_order'] = day_orders.get(task['id'], 999999)
+                today_tasks.append(task)
+                
+        return today_tasks
             
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -80,9 +94,9 @@ def main():
         total_hours = sum(parse_duration(task['content']) for task in today_tasks)
         print(f"{len(today_tasks)} tasks remaining today, totaling {total_hours:.1f} hours")
     elif command == "list":
-        # Sort tasks by priority (descending) and order (ascending)
+        # Sort tasks by priority (descending) and day_order (ascending)
         sorted_tasks = sorted(today_tasks, 
-                            key=lambda x: (-x.get('priority', 1), x.get('order', 0)))
+                            key=lambda x: (-x.get('priority', 1), x.get('day_order', 999999)))
         
         if debug:
             print("\nDebug: Sorted tasks:")
