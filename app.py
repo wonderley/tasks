@@ -4,6 +4,7 @@ from datetime import datetime
 import re
 import sys
 import json
+from openai import OpenAI
 
 def parse_duration(task_content):
     # Find duration in format [Xh] or [Xm]
@@ -71,11 +72,33 @@ def get_priority_label(priority):
     priority_map = {4: "p1", 3: "p2", 2: "p3", 1: "p4"}
     return priority_map.get(priority, "p4")  # Default to p4 if priority not found
 
+def test_openai():
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        print("Error: OPENAI_API_KEY environment variable is not set")
+        return
+        
+    client = OpenAI(api_key=api_key)
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful task management assistant."},
+                {"role": "user", "content": "Say hello and briefly describe what you could help with regarding task management."}
+            ]
+        )
+        print("\nOpenAI Response:")
+        print(response.choices[0].message.content)
+    except Exception as e:
+        print(f"Error calling OpenAI API: {e}")
+
 def show_help():
     print("Usage: python app.py <command>")
     print("\nCommands:")
     print("  total    - Show total number of tasks and total time for today")
     print("  list     - Show list of all tasks due today")
+    print("  openai   - Test OpenAI integration")
     print("  help     - Show this help message")
     print("\nOptions:")
     print("  -debug   - Show debug information including raw API responses")
@@ -88,6 +111,10 @@ def main():
     command = sys.argv[1]
     debug = "-debug" in sys.argv
     
+    if command == "openai":
+        test_openai()
+        return
+
     today_tasks = get_today_tasks(debug)
 
     if command == "total":
