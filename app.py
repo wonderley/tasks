@@ -5,6 +5,7 @@ import re
 import sys
 import json
 from openai import OpenAI
+import httpx
 
 def parse_duration(task_content):
     # Find duration in format [Xh] or [Xm]
@@ -77,8 +78,11 @@ def test_openai():
     if not api_key:
         print("Error: OPENAI_API_KEY environment variable is not set")
         return
-        
-    client = OpenAI(api_key=api_key)
+    
+    # ca_certs = requests.certs.where()
+    # http_client = httpx.Client(http2=True, verify=ca_certs)
+    http_client = httpx.Client(verify=False)
+    client = OpenAI(api_key=api_key, http_client=http_client)
     
     try:
         response = client.chat.completions.create(
