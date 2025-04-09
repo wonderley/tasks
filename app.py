@@ -1,11 +1,17 @@
 import os
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import sys
 import json
 from openai import OpenAI
 import httpx
+
+def get_target_date(args):
+    """Determine the target date based on command line arguments."""
+    if len(args) > 2 and args[2].lower() == "tomorrow":
+        return (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    return datetime.now().strftime('%Y-%m-%d')
 
 def parse_duration(task_content):
     # Find duration in format [Xh] or [Xm]
@@ -18,7 +24,7 @@ def parse_duration(task_content):
             return float(value) / 60
     return 0.0
 
-def get_today_tasks(debug=False):
+def get_tasks_for_date(target_date, debug=False):
     # Get API token from environment variable
     api_token = os.getenv('TODOIST_API_TOKEN')
     if not api_token:
@@ -47,21 +53,18 @@ def get_today_tasks(debug=False):
             print("\nDebug: Raw JSON response from Todoist:")
             print(json.dumps(data, indent=2))
         
-        # Get today's date in YYYY-MM-DD format
-        today = datetime.now().strftime('%Y-%m-%d')
-        
         # Get day orders for sorting
         day_orders = data.get('day_orders', {})
         
-        # Filter tasks that are due today and add their day_order
-        today_tasks = []
+        # Filter tasks that are due on target date and add their day_order
+        tasks = []
         for task in data.get('items', []):
-            if task.get('due') and task['due']['date'] == today and not task.get('checked', False):
+            if task.get('due') and task['due']['date'] == target_date and not task.get('checked', False):
                 # Add day_order to the task object
                 task['day_order'] = day_orders.get(task['id'], 999999)
-                today_tasks.append(task)
+                tasks.append(task)
                 
-        return today_tasks
+        return tasks
             
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -84,7 +87,7 @@ def test_openai():
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-3.5-turbo",  # Fixed model name
             messages=[
                 {"role": "system", "content": "You are a helpful task management assistant."},
                 {"role": "user", "content": "Say hello and briefly describe what you could help with regarding task management."}
@@ -96,13 +99,14 @@ def test_openai():
         print(f"Error calling OpenAI API: {e}")
 
 def show_help():
-    print("Usage: python app.py <command>")
+    print("Usage: python app.py <command> [tomorrow]")
     print("\nCommands:")
-    print("  total    - Show total number of tasks and total time for today")
-    print("  list     - Show list of all tasks due today")
+    print("  total    - Show total number of tasks and total time for today/tomorrow")
+    print("  list     - Show list of all tasks due today/tomorrow")
     print("  openai   - Test OpenAI integration")
     print("  help     - Show this help message")
     print("\nOptions:")
+    print("  tomorrow - Show tasks for tomorrow instead of today")
     print("  -debug   - Show debug information including raw API responses")
 
 def main():
@@ -117,21 +121,24 @@ def main():
         test_openai()
         return
 
-    today_tasks = get_today_tasks(debug)
+    target_date = get_target_date(sys.argv)
+    tasks = get_tasks_for_date(target_date, debug)
 
     if command == "total":
-        total_hours = sum(parse_duration(task['content']) for task in today_tasks)
-        print(f"{len(today_tasks)} tasks remaining today, totaling {total_hours:.1f} hours")
+        total_hours = sum(parse_duration(task['content']) for task in tasks)
+        date_label = "tomorrow" if len(sys.argv) > 2 and sys.argv[2].lower() == "tomorrow" else "today"
+        print(f"{len(tasks)} tasks remaining {date_label}, totaling {total_hours:.1f} hours")
     elif command == "list":
         # Sort tasks by priority (descending) and day_order (ascending)
-        sorted_tasks = sorted(today_tasks, 
+        sorted_tasks = sorted(tasks, 
                             key=lambda x: (-x.get('priority', 1), x.get('day_order', 999999)))
         
         if debug:
             print("\nDebug: Sorted tasks:")
             print(json.dumps(sorted_tasks, indent=2))
         
-        print(f"\nTasks due today:")
+        date_label = "tomorrow" if len(sys.argv) > 2 and sys.argv[2].lower() == "tomorrow" else "today"
+        print(f"\nTasks due {date_label}:")
         for task in sorted_tasks:
             priority = get_priority_label(task.get('priority', 1))
             print(f"- [{priority}] {task['content']}")
