@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine      # lightweight but full-featured
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     user        # bootstrap super-user
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB:       taskdb        # default DB created at startup
+    ports:
+      - "5433:5433"                   # <host>:<container>
+    volumes:
+      - db_data:/var/lib/postgresql/data  # keep data between restarts
+
+volumes:
+  db_data:
