@@ -31,7 +31,6 @@ type Task struct {
 var db *sql.DB
 
 func main() {
-	log.Println("In main")
 	// Initialize database connection
 	var err error
 	// Allow override via env var
@@ -69,7 +68,7 @@ func main() {
 		port = "7070"
 	}
 	addr := ":" + port
-	log.Println("Server starting on ", addr)
+	log.Println("Server starting on", addr)
 	log.Fatal(http.ListenAndServe(addr, r))
 }
 
