@@ -1,16 +1,21 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"database/sql"
 
 	"github.com/gorilla/mux"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib" // Import for pgx driver
 )
+
+//go:embed model/schema.sql
+var schemaSQL string
 
 type Task struct {
 	Id              int       `json:"id"`
@@ -26,11 +31,18 @@ type Task struct {
 var db *sql.DB
 
 func main() {
+	log.Println("In main")
 	// Initialize database connection
 	var err error
-	db, err = sql.Open("postgres", "postgres://user:secret@localhost:5433/taskdb?sslmode=disable")
+	// Allow override via env var
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://user:secret@localhost:5433/taskdb?sslmode=disable"
+	}
+
+	db, err = sql.Open("pgx", dsn)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("open: %v", err)
 	}
 	defer db.Close()
 
@@ -40,6 +52,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Apply schema migrations contained in schema.sql
+	if _, err := db.Exec(schemaSQL); err != nil {
+		log.Fatalf("schema apply failed: %v", err)
+	}
+
 	// Initialize router
 	r := mux.NewRouter()
 
@@ -47,8 +64,13 @@ func main() {
 	r.HandleFunc("/tasks", getTasksByDate).Methods("GET")
 
 	// Start server
-	log.Println("Server starting on :8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "7070"
+	}
+	addr := ":" + port
+	log.Println("Server starting on ", addr)
+	log.Fatal(http.ListenAndServe(addr, r))
 }
 
 func getTasksByDate(w http.ResponseWriter, r *http.Request) {

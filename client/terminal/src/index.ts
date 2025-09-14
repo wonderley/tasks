@@ -14,7 +14,7 @@ interface Task {
   updated_at: string;
 }
 
-const API_URL = 'http://localhost:8080';
+const API_URL = 'http://localhost:7070';
 
 const program = new Command();
 
@@ -33,7 +33,7 @@ program
         params: { date }
       });
 
-      if (response.data.length === 0) {
+      if (!response.data?.length) {
         console.log(chalk.yellow(`No tasks found for ${date}`));
         return;
       }
@@ -41,7 +41,8 @@ program
       console.log(chalk.blue(`\nTasks for ${date}:`));
       console.log(chalk.gray('─'.repeat(80)));
 
-      response.data.forEach((task) => {
+      console.log('response.data: ', response.data);
+      response?.data.forEach((task) => {
         const priorityColor = task.priority === 0 ? chalk.red :
                             task.priority === 1 ? chalk.yellow :
                             task.priority === 2 ? chalk.blue :
